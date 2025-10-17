@@ -1,8 +1,9 @@
 import bpy
 import math
 import os
+import json
+import mathutils
 from mathutils import Euler
-
 # ──────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────
@@ -12,20 +13,25 @@ secondObjectId = "SMPLX-male-material-seg-dup"
 mainMeshId = "SMPLX-mesh-male-material"
 secondMeshId = "SMPLX-mesh-male-color"
 
+# Environment textures (.hdr)
 envTextures = [
     r"C:/tmp/blender-scripts/data/university_workshop_4k.exr",
-    r"C:/tmp/blender-scripts/data/warm_reception_dinner_4k.exr"
+    # r"C:/tmp/blender-scripts/data/warm_reception_dinner_4k.exr"
 ]
 
-
-# Define your camera positions (camera names or transforms)
+# Camera positions (Euler rotations in radians)
 camera_positions = {
     "isometric":(3, -3, 4),
     # "front": (0.5, -6, 1),
 }
 
+# Pose JSON folder (each file contains {"pose": [..floats..]})
+poses_dir = r"C:/tmp/blender-scripts/data/poses"
+pose_files = [os.path.join(poses_dir, f) for f in os.listdir(poses_dir) if f.endswith(".json")]
+
+
 # Define the Z-axis rotation angles for the body
-zAngles = [0, 90] # [0, 45, 90, 135, 180]
+zAngles = [0] # [0, 45, 90, 135, 180]
 
 # ──────────────────────────────
 # UTILITIES
@@ -81,6 +87,80 @@ def set_camera_rotation(rotation_tuple):
     else:
         print("⚠️ No active camera found.")
 
+
+pose_to_bone_map = {
+    0: "pelvis",
+    1: "left_hip",
+    2: "right_hip",
+    3: "spine1",
+    4: "left_knee",
+    5: "right_knee",
+    6: "spine2",
+    7: "left_ankle",
+    8: "right_ankle",
+    9: "spine3",
+    10: "left_foot",
+    11: "right_foot",
+    12: "neck",
+    13: "left_collar",
+    14: "right_collar",
+    15: "head",
+    16: "left_shoulder",
+    17: "right_shoulder",
+    18: "left_elbow",
+    19: "right_elbow",
+    20: "left_wrist",
+    21: "right_wrist",
+    22: "jaw",
+    23: "left_eye_smplhf",
+    24: "right_eye_smplhf",
+    # then continue with hand joints:
+    25: "left_thumb1", 26: "left_thumb2", 27: "left_thumb3",
+    28: "left_index1", 29: "left_index2", 30: "left_index3",
+    31: "left_middle1", 32: "left_middle2", 33: "left_middle3",
+    34: "left_ring1", 35: "left_ring2", 36: "left_ring3",
+    37: "left_pinky1", 38: "left_pinky2", 39: "left_pinky3",
+    40: "right_thumb1", 41: "right_thumb2", 42: "right_thumb3",
+    43: "right_index1", 44: "right_index2", 45: "right_index3",
+    46: "right_middle1", 47: "right_middle2", 48: "right_middle3",
+    49: "right_ring1", 50: "right_ring2", 51: "right_ring3",
+    52: "right_pinky1", 53: "right_pinky2", 54: "right_pinky3"
+}
+
+def apply_smplx_pose_mapped(filepath, armature_name, pose_to_bone_map):
+    if not os.path.exists(filepath):
+        print("Pose file not found:", filepath); return
+    with open(filepath, "r") as f:
+        data = json.load(f)
+    pose = data.get("pose") if isinstance(data, dict) else data
+
+    arm = bpy.data.objects.get(armature_name)
+    if not arm or arm.type != 'ARMATURE':
+        print("Armature not valid."); return
+
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode='POSE')
+
+    for i, bone_name in pose_to_bone_map.items():
+        base = i * 3
+        if base + 2 >= len(pose): continue
+        rx, ry, rz = pose[base:base+3]
+        angle = math.sqrt(rx*rx + ry*ry + rz*rz)
+        if angle < 1e-8:
+            quat = mathutils.Quaternion((1, 0, 0, 0))
+        else:
+            axis = mathutils.Vector((rx, ry, rz)) / angle
+            quat = mathutils.Quaternion(axis, angle)
+        bone = arm.pose.bones.get(bone_name)
+        if not bone: continue
+        bone.rotation_mode = 'QUATERNION'
+        bone.rotation_quaternion = quat
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.context.view_layer.update()
+    print(f"✅ Pose '{os.path.basename(filepath)}' applied correctly to {armature_name}")
+
+
 def prepare_scene_for_object(armature_name: str, rotZ_deg: float):
     arm = bpy.context.scene.objects.get(armature_name)
     if not arm:
@@ -110,22 +190,29 @@ for env_path in envTextures:
         set_camera_rotation(cam_rot)
 
         for rotZ_deg in zAngles:
-            print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print(f"ENV: {env_name} | CAMERA: {cam_name} | ROTZ: {rotZ_deg}")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            for pose_path in pose_files:
+                pose_name = os.path.splitext(os.path.basename(pose_path))[0]
 
-            for current_obj in [mainObjectId, secondObjectId]:
-                prepare_scene_for_object(current_obj, rotZ_deg)
+                print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                print(f"ENV: {env_name} | CAM: {cam_name} | ROTZ: {rotZ_deg} | POSE: {pose_name}")
+                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                # Update output file paths
-                scene = bpy.context.scene
-                tree = scene.node_tree
-                for node in tree.nodes:
-                    if node.type == "OUTPUT_FILE" and not node.mute:
-                        node.file_slots[0].path = (
-                            f"{node.name}&env={env_name}&cam={cam_name}&rotZ={rotZ_deg}"
-                        )
-                        print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
+                # Apply the pose before rendering
+                apply_smplx_pose_mapped(pose_path, mainObjectId, pose_to_bone_map)
+                apply_smplx_pose_mapped(pose_path, secondObjectId, pose_to_bone_map)
 
-                bpy.ops.render.render(write_still=True)
-                print(f"🖼️ Render done for '{current_obj}' under {env_name}, {cam_name}, rotZ={rotZ_deg}\n")
+                for current_obj in [mainObjectId, secondObjectId]:
+                    prepare_scene_for_object(current_obj, rotZ_deg)
+
+                    # Update output file paths
+                    scene = bpy.context.scene
+                    tree = scene.node_tree
+                    for node in tree.nodes:
+                        if node.type == "OUTPUT_FILE" and not node.mute:
+                            node.file_slots[0].path = (
+                                f"{node.name}&env={env_name}&cam={cam_name}&rotZ={rotZ_deg}&pose={pose_name}"
+                            )
+                            print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
+
+                    bpy.ops.render.render(write_still=True)
+                    print(f"🖼️ Render done for '{current_obj}' ({pose_name})\n")
