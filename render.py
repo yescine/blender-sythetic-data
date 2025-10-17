@@ -22,7 +22,6 @@ envTextures = [
 # Camera positions (Euler rotations in radians)
 camera_positions = {
     "isometric":(3, -3, 4),
-    # "front": (0.5, -6, 1),
 }
 
 # Pose JSON folder (each file contains {"pose": [..floats..]})
@@ -180,21 +179,36 @@ def prepare_scene_for_object(armature_name: str, rotZ_deg: float):
         set_visibility(secondMeshId, True)
 
 # ──────────────────────────────
-# MAIN LOOP
+# MAIN LOOP (with per-loop progress)
 # ──────────────────────────────
-for env_path in envTextures:
+total_envs = len(envTextures)
+total_cams = len(camera_positions)
+total_rots = len(zAngles)
+total_poses = len(pose_files)
+total_objs = 2  # mainObjectId + secondObjectId
+total_combinations = total_envs * total_cams * total_rots * total_poses * total_objs
+
+progress = 0
+
+for e_idx, env_path in enumerate(envTextures, start=1):
     env_name = os.path.splitext(os.path.basename(env_path))[0] if os.path.exists(env_path) else "noenv"
     set_environment_texture(env_path if os.path.exists(env_path) else None)
 
-    for cam_name, cam_rot in camera_positions.items():
+    for c_idx, (cam_name, cam_rot) in enumerate(camera_positions.items(), start=1):
         set_camera_rotation(cam_rot)
 
-        for rotZ_deg in zAngles:
-            for pose_path in pose_files:
+        for r_idx, rotZ_deg in enumerate(zAngles, start=1):
+            for p_idx, pose_path in enumerate(pose_files, start=1):
                 pose_name = os.path.splitext(os.path.basename(pose_path))[0]
 
                 print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print(f"ENV: {env_name} | CAM: {cam_name} | ROTZ: {rotZ_deg} | POSE: {pose_name}")
+                print(
+                    f"ENV: {env_name} ({e_idx}/{total_envs}) | "
+                    f"CAM: {cam_name} ({c_idx}/{total_cams}) | "
+                    f"ROTZ: {rotZ_deg}° ({r_idx}/{total_rots}) | "
+                    f"POSE: {pose_name} ({p_idx}/{total_poses})"
+                )
+                print(f"Global progress: {progress}/{total_combinations} total")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
                 # Apply the pose before rendering
@@ -202,6 +216,8 @@ for env_path in envTextures:
                 apply_smplx_pose_mapped(pose_path, secondObjectId, pose_to_bone_map)
 
                 for current_obj in [mainObjectId, secondObjectId]:
+                    progress += 1  # Increment for every render
+
                     prepare_scene_for_object(current_obj, rotZ_deg)
 
                     # Update output file paths
@@ -215,4 +231,5 @@ for env_path in envTextures:
                             print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
 
                     bpy.ops.render.render(write_still=True)
-                    print(f"🖼️ Render done for '{current_obj}' ({pose_name})\n")
+                    print(f"🖼️ Render done for '{current_obj}' ({pose_name}) [{progress}/{total_combinations}] ✅\n")
+
