@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image + BW Mask Overlay</title>
+  <style>
+    :root {
+      --bg:#0b1020; --panel:#121a36; --muted:#9fb0ff; --txt:#e8edff;
+      --acc:#6ae37e; --warn:#ffda6a; --bad:#ff7a7a; --border:#273358;
+    }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--txt); font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .wrap { max-width:1100px; margin:24px auto; padding:0 16px; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+    .hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); }
+    .hdr h1 { font-size:16px; margin:0; letter-spacing:.2px; opacity:.9; }
+    .grid { display:grid; gap:16px; grid-template-columns: 1fr; }
+    .row { display:grid; gap:12px; grid-template-columns: 1fr; padding:16px; }
+    @media (min-width:860px) { .row.cols-2 { grid-template-columns: 1fr 1fr; } }
+    .controls { display:grid; gap:12px; grid-template-columns: 1fr; }
+    @media (min-width:720px) { .controls { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    .ctrl { display:flex; flex-direction:column; gap:6px; }
+    label { font-size:12px; color:var(--muted); }
+    input[type="file"] { padding:8px; background:#0f1530; border:1px dashed var(--border); border-radius:10px; color:var(--txt); }
+    input[type="range"], input[type="color"], select { width:100%; }
+    .btns { display:flex; gap:10px; flex-wrap:wrap; }
+    button { background:#1a2550; border:1px solid var(--border); color:var(--txt); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    button:hover { filter:brightness(1.1); }
+    .canvas-wrap { display:flex; align-items:center; justify-content:center; background:#0c122b; border-radius:14px; overflow:hidden; border:1px solid var(--border); min-height:360px; }
+    canvas { max-width:100%; height:auto; image-rendering:auto; }
+    .hint { color:var(--muted); font-size:12px; opacity:.9; }
+    .row .note { font-size:12px; opacity:.8; color:var(--muted); }
+    .switch { display:flex; align-items:center; gap:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="hdr">
+        <h1>Image + BW Mask Overlay</h1>
+        <div class="hint">Upload an image and a B/W mask. Tune color, opacity & threshold. Download PNG.</div>
+      </div>
+
+      <div class="row cols-2">
+        <div class="controls">
+          <div class="ctrl">
+            <label for="imgInput">Base image (JPG/PNG/WebP)</label>
+            <input id="imgInput" type="file" accept="image/*" />
+          </div>
+          <div class="ctrl">
+            <label for="maskInput">Mask image (B/W)</label>
+            <input id="maskInput" type="file" accept="image/*" />
+          </div>
+          <div class="ctrl">
+            <label for="maskColor">Mask color</label>
+            <input id="maskColor" type="color" value="#ff0000" />
+          </div>
+          <div class="ctrl">
+            <label for="opacity">Opacity: <span id="opacityVal">0.6</span></label>
+            <input id="opacity" type="range" min="0" max="1" step="0.01" value="0.6" />
+          </div>
+          <div class="ctrl">
+            <label for="threshold">Threshold (0-255): <span id="thVal">128</span></label>
+            <input id="threshold" type="range" min="0" max="255" step="1" value="128" />
+          </div>
+          <div class="ctrl">
+            <label for="alphaMode">Alpha mode</label>
+            <select id="alphaMode">
+              <option value="binary">Binary (≥ threshold)</option>
+              <option value="continuous">Continuous (value/255)</option>
+            </select>
+          </div>
+          <div class="ctrl">
+            <label>&nbsp;</label>
+            <div class="switch"><input id="invert" type="checkbox" /> <span>Invert mask</span></div>
+          </div>
+          <div class="ctrl">
+            <label>&nbsp;</label>
+            <div class="switch"><input id="fitMask" type="checkbox" checked /> <span>Auto-resize mask to image size</span></div>
+          </div>
+          <div class="ctrl">
+            <label>&nbsp;</label>
+            <div class="switch"><input id="showMaskOnly" type="checkbox" /> <span>Preview mask as color only</span></div>
+          </div>
+          <div class="ctrl btns">
+            <button id="downloadBtn" disabled>Download PNG</button>
+            <button id="clearBtn">Clear</button>
+          </div>
+          <div class="note">Tip: If your mask is grayscale, use <em>Continuous</em> alpha; for strict areas, use <em>Binary</em> with a higher threshold.</div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="hint">All processing happens locally in your browser. Nothing is uploaded.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const imgInput = document.getElementById('imgInput');
+    const maskInput = document.getElementById('maskInput');
+    const maskColorInput = document.getElementById('maskColor');
+    const opacityInput = document.getElementById('opacity');
+    const opacityVal = document.getElementById('opacityVal');
+    const thresholdInput = document.getElementById('threshold');
+    const thVal = document.getElementById('thVal');
+    const alphaMode = document.getElementById('alphaMode');
+    const invertChk = document.getElementById('invert');
+    const fitMaskChk = document.getElementById('fitMask');
+    const showMaskOnlyChk = document.getElementById('showMaskOnly');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    let baseImg = null; // HTMLImageElement
+    let maskImg = null; // HTMLImageElement
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) return reject(new Error('No file'));
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+        img.src = url;
+      });
+    }
+
+    imgInput.addEventListener('change', async (e) => {
+      try {
+        baseImg = await loadImageFromFile(e.target.files[0]);
+        setCanvasSize(baseImg.width, baseImg.height);
+        render();
+      } catch (err) { console.error(err); }
+    });
+
+    maskInput.addEventListener('change', async (e) => {
+      try {
+        maskImg = await loadImageFromFile(e.target.files[0]);
+        render();
+      } catch (err) { console.error(err); }
+    });
+
+    opacityInput.addEventListener('input', () => { opacityVal.textContent = opacityInput.value; render(); });
+    thresholdInput.addEventListener('input', () => { thVal.textContent = thresholdInput.value; render(); });
+    [maskColorInput, alphaMode, invertChk, fitMaskChk, showMaskOnlyChk].forEach(el => el.addEventListener('input', render));
+
+    clearBtn.addEventListener('click', () => {
+      imgInput.value = '';
+      maskInput.value = '';
+      baseImg = null; maskImg = null;
+      setCanvasSize(0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      downloadBtn.disabled = true;
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!canvas.width || !canvas.height) return;
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'overlay.png';
+      a.click();
+    });
+
+    function setCanvasSize(w, h) {
+      canvas.width = w; canvas.height = h;
+    }
+
+    function hexToRgb(hex) {
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : {r:255,g:0,b:0};
+    }
+
+    function render() {
+      if (!baseImg) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+
+      // Draw base image or blank if previewing mask only without image
+      if (!showMaskOnlyChk.checked) {
+        setCanvasSize(baseImg.width, baseImg.height);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+      } else {
+        // if mask only and no base image, keep canvas sized by mask if present later
+        setCanvasSize(baseImg.width, baseImg.height);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
+
+      if (!maskImg) { downloadBtn.disabled = !baseImg; return; }
+
+      // Prepare an offscreen canvas for the mask, resized to base image if requested
+      const off = document.createElement('canvas');
+      let mw = maskImg.width, mh = maskImg.height;
+      if (fitMaskChk.checked) { mw = baseImg.width; mh = baseImg.height; }
+      off.width = mw; off.height = mh;
+      const octx = off.getContext('2d', { willReadFrequently: true });
+
+      // Draw mask into offscreen (scaled if needed)
+      octx.drawImage(maskImg, 0, 0, mw, mh);
+      const imgData = octx.getImageData(0, 0, mw, mh);
+      const data = imgData.data;
+
+      const { r, g, b } = hexToRgb(maskColorInput.value);
+      const opacity = parseFloat(opacityInput.value);
+      const thr = parseInt(thresholdInput.value, 10) || 0;
+      const mode = alphaMode.value; // 'binary' | 'continuous'
+      const invert = invertChk.checked;
+
+      // Build a colored overlay from the grayscale mask
+      // We consider the mask's luminance using the red channel (sufficient for B/W)
+      for (let i = 0; i < data.length; i += 4) {
+        const lum = data[i]; // assume B/W mask; R=G=B
+        const v = invert ? 255 - lum : lum;
+        let a = 0;
+        if (mode === 'binary') {
+          a = v >= thr ? 255 : 0;
+        } else {
+          // continuous alpha proportional to value, while also enforcing threshold floor
+          const base = v / 255;
+          a = v >= thr ? Math.round(base * 255) : 0;
+        }
+        if (a > 0) {
+          data[i] = r;     // R
+          data[i+1] = g;   // G
+          data[i+2] = b;   // B
+          // multiply by user opacity
+          data[i+3] = Math.round(a * opacity);
+        } else {
+          // fully transparent pixel
+          data[i+3] = 0;
+        }
+      }
+
+      octx.putImageData(imgData, 0, 0);
+
+      // If previewing only the mask, clear and draw overlay alone; else draw over the image
+      if (showMaskOnlyChk.checked) {
+        setCanvasSize(off.width, off.height);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(off, 0, 0);
+      } else {
+        // Draw overlay scaled to base image size
+        ctx.drawImage(off, 0, 0, off.width, off.height, 0, 0, canvas.width, canvas.height);
+      }
+
+      downloadBtn.disabled = false;
+    }
+  </script>
+</body>
+</html>
