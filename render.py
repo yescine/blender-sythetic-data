@@ -7,6 +7,7 @@ from mathutils import Euler
 # ──────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────
+characterArmature="SMPLX-h170w60"
 mainObjectId = "SMPLX-male-material-seg"
 secondObjectId = "SMPLX-male-material-seg-dup"
 
@@ -264,7 +265,7 @@ for e_idx, env_path in enumerate(envTextures, start=1):
                         for node in tree.nodes:
                             if node.type == "OUTPUT_FILE" and not node.mute:
                                 node.file_slots[0].path = (
-                                    f"{node.name}&env={env_name}&cam={cam_name}&tex={tex_name}&rotZ={rotZ_deg}&pose={pose_name}"
+                                    f"{node.name}&env={env_name}&cam={cam_name}&tex={tex_name}&rotZ={rotZ_deg}&pose={pose_name}&char={characterArmature}"
                                 )
                                 print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
 
