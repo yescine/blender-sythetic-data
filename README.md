@@ -36,6 +36,10 @@ Example
 
 ```bash
 cd /workspace
-/workspace/blender/blender -b /workspace/data-assets/samplex-render-workflow.blend -P /workspace/data-assets/render.py
+/workspace/blender/blender -b /workspace/data-assets/samplex-render-workflow.blend -P /workspace/blender-sythetic-data/render.py
 
 ```
+
+## Visualize
+
+inside `./apps` single html file to visulize different outputs
