@@ -1,5 +1,13 @@
 # 📦 Installation
 
+Windows View, copy render.py into script pannel
+
+run to organize masks
+
+```bash
+python organize_image_mask.py --img-dir /tmp/blender-outputs  --out-dir ./data/images-masks
+```
+
 ## ⚙️ Environment Configuration
 
 ### Runpod
