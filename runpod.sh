@@ -77,11 +77,22 @@ echo -e "\n\n🚀 Development environment ready!"
 echo "🎨 Installing system dependencies required for Blender headless run..."
 
 apt-get update -y
+
 apt-get install -y \
-  libxi6 libxrandr2 libxrender1 libxkbcommon0 libx11-xcb1 \
-  libgl1-mesa-glx libglu1-mesa \
-  libegl1 libopengl0 \
-  libxxf86vm1 libxcursor1 libasound2 \
+  libxi6 \
+  libxrandr2 \
+  libxrender1 \
+  libxkbcommon0 \
+  libx11-xcb1 \
+  libgl1 \
+  libglx-mesa0 \
+  libgl1-mesa-dri \
+  libglu1-mesa \
+  libegl1 \
+  libopengl0 \
+  libxxf86vm1 \
+  libxcursor1 \
+  libasound2t64 \
   mesa-utils
 
 echo "🔍 Checking OpenGL availability..."
@@ -93,10 +104,10 @@ BLENDER_DIR="/workspace/blender"
 if [[ ! -d "$BLENDER_DIR" ]]; then
     echo "⬇️ Downloading Blender $BLENDER_VERSION..."
     cd /workspace
-    wget https://download.blender.org/release/Blender3.6/blender-$BLENDER_VERSION-linux-x64.tar.xz
-    tar -xf blender-$BLENDER_VERSION-linux-x64.tar.xz
-    mv blender-$BLENDER_VERSION-linux-x64 blender
-    rm blender-$BLENDER_VERSION-linux-x64.tar.xz
+    wget https://download.blender.org/release/Blender4.5/blender-${BLENDER_VERSION}-linux-x64.tar.xz
+    tar -xf blender-${BLENDER_VERSION}-linux-x64.tar.xz
+    mv blender-${BLENDER_VERSION}-linux-x64 blender
+    rm blender-${BLENDER_VERSION}-linux-x64.tar.xz
 else
     echo "📁 Blender directory already exists. Skipping download."
 fi
