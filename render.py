@@ -34,6 +34,42 @@ def targetPath(*parts):
         return os.path.join(WINDOWS_BASE, *parts).replace("\\", "/")
     return os.path.join(LINUX_BASE, *parts)
 
+# ──────────────────────────────
+# FORCE Cycles to use GPU in headless mode
+# ──────────────────────────────
+if(platform.system().lower().startswith("linux")):
+    # Set device to GPU
+    bpy.context.preferences.addons["cycles"].preferences.compute_device_type = "CUDA" # or "OPTIX" or "HIP"
+
+    # Enable CUDA kernel persistence
+    bpy.context.preferences.addons['cycles'].preferences.use_cuda_kernel_persistence = True
+
+    # Enable all CUDA devices
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    prefs.get_devices()
+    for device in prefs.devices:
+        device.use = True
+
+    # Ensure scene uses Cycles GPU
+    bpy.context.scene.render.engine = "CYCLES"
+    bpy.context.scene.cycles.device = "GPU"
+    
+    # Set Cycles render settings
+    cycles = bpy.context.scene.cycles
+    
+    cycles.tile_size = 1024
+    
+    cycles.samples = 4096
+    cycles.use_adaptive_sampling = True
+    cycles.adaptive_threshold = 0.01
+    
+    cycles.max_bounces = 12
+    cycles.diffuse_bounces = 4
+    cycles.glossy_bounces = 4
+    cycles.transmission_bounces = 12
+    
+    cycles.use_guiding = True
+    cycles.guiding_training_samples = 64
 
 # ──────────────────────────────
 # CONFIGURATION
