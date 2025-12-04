@@ -4,6 +4,37 @@ import os
 import json
 import mathutils
 from mathutils import Euler
+import platform
+
+# ────────────────────────────────────────────────────────────────
+# CROSS-PLATFORM BASE PATH RESOLVER
+# ────────────────────────────────────────────────────────────────
+
+def resolve(path_win: str, path_linux: str):
+    """
+    Returns the correct path depending on OS.
+    Windows -> use path_win
+    Linux   -> use path_linux
+    """
+    if platform.system().lower().startswith("win"):
+        return path_win.replace("\\", "/")
+    return path_linux
+
+
+# Set your base folders once
+WINDOWS_BASE = r"C:/tmp/blender-scripts/data"
+LINUX_BASE   = r"/workspace/data-assets"
+
+def targetPath(*parts):
+    """
+    Cross-platform join using the correct root directory.
+    Usage: targetPath("lights", "file.exr")
+    """
+    if platform.system().lower().startswith("win"):
+        return os.path.join(WINDOWS_BASE, *parts).replace("\\", "/")
+    return os.path.join(LINUX_BASE, *parts)
+
+
 # ──────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────
@@ -16,8 +47,8 @@ secondMeshId = "SMPLX-mesh-male-color"
 
 # Environment textures (.hdr)
 envTextures = [
-    r"C:/tmp/blender-scripts/data/lights/university_workshop_4k.exr",
-    # r"C:/tmp/blender-scripts/data/warm_reception_dinner_4k.exr"
+    targetPath("lights", "university_workshop_4k.exr"),
+    # p("lights", "warm_reception_dinner_4k.exr")
 ]
 
 # Camera positions (Euler rotations in radians)
@@ -28,12 +59,12 @@ camera_positions = {
 
 # Texture list (each applied to "SMPLX-male.001" slot)
 textures = [
-    r"C:/tmp/blender-scripts/data/textures/f_alb.png",
-    r"C:/tmp/blender-scripts/data/textures/m_alb.png",
+    targetPath("textures", "f_alb.png"),
+    targetPath("textures", "m_alb.png"),
 ]
 
 # Pose JSON folder (each file contains {"pose": [..floats..]})
-poses_dir = r"C:/tmp/blender-scripts/data/poses"
+poses_dir = targetPath("poses")
 pose_files = [os.path.join(poses_dir, f) for f in os.listdir(poses_dir) if f.endswith(".json")]
 
 
