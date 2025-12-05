@@ -76,11 +76,12 @@ if(platform.system().lower().startswith("linux")):
 # CONFIGURATION
 # ──────────────────────────────
 characterArmature="SMPLX-h170w60"
-mainObjectId = "SMPLX-male-material-seg"
-secondObjectId = "SMPLX-male-material-seg-dup"
+targetChar="male"
+mainObjectId = f"SMPLX-{targetChar}-material-seg"
+secondObjectId = f"SMPLX-{targetChar}-material-seg-dup"
 
-mainMeshId = "SMPLX-mesh-male-material"
-secondMeshId = "SMPLX-mesh-male-color"
+mainMeshId = f"SMPLX-mesh-{targetChar}-material"
+secondMeshId = f"SMPLX-mesh-{targetChar}-color"
 
 # Environment textures (.hdr)
 envTextures = [
