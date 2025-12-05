@@ -48,32 +48,48 @@ def main():
     files = sorted([p for p in img_dir.iterdir() if p.is_file() and p.suffix.lower() in [".png", ".jpg", ".jpeg"]])
     print(f"📂 Found {len(files)} top-level image files in {img_dir}")
 
-    # collect metadata keys
-    all_keys = set()
-    parsed_data = []
+    # collect metadata and group image + mask pairs
+    groups = {}   # key: tuple(sorted meta excluding type)), value: dict(image=Path, mask=Path, meta=dict)
+
     for f in files:
         meta = parse_filename_metadata(f.name)
-        meta["type"] = detect_type(f)
-        parsed_data.append((f, meta))
-        all_keys.update(meta.keys())
+        t = detect_type(f)
+        meta_no_type = tuple(sorted((k, v) for k, v in meta.items() if k != "type"))
 
-    all_keys = sorted(all_keys)
+        if meta_no_type not in groups:
+            groups[meta_no_type] = {"image": None, "mask": None, "meta": meta}
+
+        groups[meta_no_type][t] = f
+        groups[meta_no_type]["meta"].update(meta)  # combine metadata if needed
+
+    # collect all keys
+    all_keys = sorted({k for g in groups.values() for k in g["meta"].keys()})
 
     # write CSV + copy files
     csv_path = base_dir / "data.csv"
     with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["filename"] + all_keys)
+
         count = 1
-        for file, meta in parsed_data:
-            new_name = f"{count:04d}.png"
-            dst = img_out if meta.get("type") == "image" else mask_out
-            shutil.copy(file, dst / new_name)
-            row = [new_name] + [meta.get(k, "") for k in all_keys]
+        for _, entry in groups.items():
+            idx_name = f"{count:04d}.png"
+
+            # copy image
+            if entry["image"] is not None:
+                shutil.copy(entry["image"], img_out / idx_name)
+
+            # copy mask
+            if entry["mask"] is not None:
+                shutil.copy(entry["mask"], mask_out / idx_name)
+
+            # write metadata row
+            row = [idx_name] + [entry["meta"].get(k, "") for k in all_keys]
             writer.writerow(row)
             count += 1
 
-    print(f"✅ Done. {count-1} files processed.")
+    print(f"✅ Done. {count-1} pairs processed.")
+
     print(f"Images → {img_out}")
     print(f"Masks → {mask_out}")
     print(f"Metadata → {csv_path}")
