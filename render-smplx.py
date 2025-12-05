@@ -91,8 +91,9 @@ envTextures = [
 
 # Camera positions (Euler rotations in radians)
 camera_positions = {
-    "isometric":(3, -3, 4),
-     # "front": (0.5, -6, 1),
+    "isometric":(2.5, -2.5, 3.5),
+    # "front": (0.1, -4.5, 1),
+    # "isometricbottom":(2.5, -2.5, -2.5),
 }
 
 # Texture list (each applied to "SMPLX-male.001" slot)
