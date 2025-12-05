@@ -1,12 +1,20 @@
-# 📦 Installation
+# 📦 Scripts
 
-Windows View, copy render.py into script pannel
+## Main
 
-run to organize masks
+- Windows View, copy `render-*.py` into script pannel and execute
+
+- run to organize masks
 
 ```bash
-python organize_image_mask.py --img-dir /tmp/blender-outputs  --out-dir ./data/images-masks
+python organize_image_mask.py --img-dir /tmp/blender-outputs  --out-dir ./data/
 ```
+
+## Misc
+
+- `hello-world.py`: basic script execution, mainly logs
+- `scene_export_utils.py`: Logs console log object in the scene
+- `extract_materials_idx.py`: log in json all material with their "Pass Index"
 
 ## ⚙️ Environment Configuration
 
