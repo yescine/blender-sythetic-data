@@ -10,6 +10,12 @@
 python organize_image_mask.py --img-dir /tmp/blender-outputs  --out-dir ./data/
 ```
 
+Generate Yolo, CVAT data sets
+```bash
+python ./organize_masks_annotation.py --mask-dir ./data/images-masks/masks --annotation-json ./data/material_dic.json --out-dir ./data/images-masks
+```
+
+
 ## Misc
 
 - `hello-world.py`: basic script execution, mainly logs
