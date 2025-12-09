@@ -86,7 +86,7 @@ secondMeshId = f"main-mesh-{targetChar}-color"
 # Environment textures (.hdr)
 envTextures = [
     targetPath("lights", "university_workshop_4k.exr"),
-    # p("lights", "warm_reception_dinner_4k.exr")
+    # targetPath("lights", "warm_reception_dinner_4k.exr")
 ]
 
 # Camera positions (Euler rotations in radians)
@@ -324,6 +324,8 @@ for e_idx, env_path in enumerate(envTextures, start=1):
             if(os.path.exists(tex_path)):
                 tex_name = os.path.splitext(os.path.basename(tex_path))[0]
                 set_mesh_texture(secondMeshId, "main-male.001", tex_path)
+            else:
+                tex_name = "none"
 
             for r_idx, rotZ_deg in enumerate(zAngles, start=1):
                 for p_idx, pose_path in enumerate(pose_files, start=1):
@@ -340,8 +342,11 @@ for e_idx, env_path in enumerate(envTextures, start=1):
                     print(f"Global progress: {progress}/{total_combinations} total")
                     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                    load_pose_from_json_file(mainObjectId, pose_path)
-                    load_pose_from_json_file(secondObjectId, pose_path)
+                    mainArmature = bpy.data.objects[mainObjectId]
+                    load_pose_from_json_file(mainArmature, pose_path)
+                    
+                    secondArmature = bpy.data.objects[secondObjectId]
+                    load_pose_from_json_file(secondArmature, pose_path)
 
                     for current_obj in [mainObjectId, secondObjectId]:
                         progress += 1

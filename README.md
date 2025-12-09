@@ -44,6 +44,11 @@ Example
 mc mirror --max-workers=4 myminio/public/shared/blender /workspace/data-assets
 ```
 
+Upload outputed files continously 
+```bash
+mc mirror --watch --max-workers=4 /tmp/blender-outputs myminio/public/shared/blender-outputs
+```
+
 ## Render
 
 Example
