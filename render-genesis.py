@@ -282,16 +282,26 @@ def prepare_scene_for_object(armature_name: str, rotZ_deg: float):
         set_visibility("main-hair-material", True)
         set_visibility("main-eyes-material", True)
         set_visibility("main-eyelashes-material", True)
+        set_visibility("main-eyebrows-material", True)
+        set_visibility("main-hair-color", False)
+        set_visibility("main-eyes-color", False)
+        set_visibility("main-eyelashes-color", False)
+        set_visibility("main-eyebrows-color", False)
         
         
     elif armature_name == secondObjectId:
         toggle_output_nodes("image")
         set_visibility(mainMeshId, False)
         set_visibility(secondMeshId, True)
-        
+
+        set_visibility("main-hair-material", False)
+        set_visibility("main-eyes-material", False)
+        set_visibility("main-eyelashes-material", False)
+        set_visibility("main-eyebrows-material", False)
         set_visibility("main-hair-color", True)
         set_visibility("main-eyes-color", True)
         set_visibility("main-eyelashes-color", True)
+        set_visibility("main-eyebrows-color", True)
 
 # ──────────────────────────────
 # MAIN LOOP (with per-loop progress)
