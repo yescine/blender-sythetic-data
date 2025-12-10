@@ -92,20 +92,20 @@ envTextures = [
 # Camera positions (Euler rotations in radians)
 camera_positions = {
     "isometric":(2.5, -2.5, 3.5),
-    # "front": (0.1, -4.5, 1),
-    # "isometricbottom":(2.5, -2.5, -2.5),
+    "front": (0.1, -4.5, 1),
+    "isometricbottom":(2.5, -2.5, -2.5),
 }
 
 # Texture list (each applied to "main-male.001" slot)
 textures = []
 
 # Pose JSON folder (each file contains {"pose": [..floats..]})
-poses_dir = targetPath("poses")
+poses_dir = targetPath("poses") # ("characters", characterArmature, "poses")
 pose_files = [os.path.join(poses_dir, f) for f in os.listdir(poses_dir) if f.endswith(".json")]
 
 
 # Define the Z-axis rotation angles for the body
-zAngles = [0] # [0, 45, 90, 135, 180]
+zAngles = [0, 45, 90, 135, 180]
 
 # ──────────────────────────────
 # UTILITIES
@@ -153,50 +153,50 @@ def set_environment_texture(path: str | None):
             bg_node.inputs["Color"].default_value = (0.5, 0.5, 0.5, 1)
         print("🌫️ Using default gray environment.")
 
-def set_camera_rotation(rotation_tuple):
+def set_camera_location(location_tuple):
     cam = bpy.context.scene.camera
     if cam:
-        cam.rotation_euler = rotation_tuple
-        print(f"🎥 Set camera rotation to {tuple(round(math.degrees(a), 1) for a in rotation_tuple)}°")
+        cam.location = location_tuple
+        print(f"🎥 Set camera location to {tuple(round(v, 3) for v in location_tuple)}")
     else:
         print("⚠️ No active camera found.")
 
-def add_camera_variance(base_rot, variance_ratio=0.10):
+def add_camera_position_variance(base_loc, variance_ratio=0.10):
     """
-    Adds up to ±variance_ratio (default ±10%) noise to each Euler axis.
-    base_rot is a tuple (x, y, z) in radians.
+    Adds up to ±variance_ratio noise to each camera *position* axis.
+    base_loc is a tuple (x, y, z).
     Returns a new tuple with randomized offsets.
     """
     noisy = []
-    for angle in base_rot:
-        max_delta = abs(angle) * variance_ratio
+    for coord in base_loc:
+        max_delta = abs(coord) * variance_ratio
         delta = random.uniform(-max_delta, max_delta)
-        noisy.append(angle + delta)
+        noisy.append(coord + delta)
     return tuple(noisy)
 
-def add_camera_gaussian_noise(base_rot, sigma_ratio=0.05, clamp_ratio=0.15):
+def add_camera_position_gaussian(base_loc, sigma_ratio=0.05, clamp_ratio=0.15):
     """
-    Adds Gaussian noise to each Euler axis.
-    - sigma_ratio: standard deviation as a fraction of the base rotation (default = 5%)
-    - clamp_ratio: hard cap to limit extreme values (default = ±15%)
+    Adds Gaussian noise to each camera *position* axis.
+    - sigma_ratio: σ = percentage of base coordinate (default = 5%)
+    - clamp_ratio: hard cap for max deviation (default = 15%)
 
-    If a rotation axis is zero, σ becomes a small constant so we still allow noise.
+    If a coordinate is zero, a fallback value (1.0) is used to allow noise.
     """
     noisy = []
-    for angle in base_rot:
-        # avoid zero-variance when angle = 0
-        angle_abs = abs(angle) if abs(angle) > 1e-6 else 1.0
+    for coord in base_loc:
+        # avoid zero-variance when coordinate = 0
+        coord_abs = abs(coord) if abs(coord) > 1e-6 else 1.0
 
-        sigma = angle_abs * sigma_ratio
-        clamp = angle_abs * clamp_ratio
+        sigma = coord_abs * sigma_ratio
+        clamp = coord_abs * clamp_ratio
 
-        # Gaussian noise centered on 0
+        # Gaussian noise
         delta = random.gauss(0, sigma)
 
-        # Limit extreme noise
+        # clamp extreme values
         delta = max(-clamp, min(clamp, delta))
 
-        noisy.append(angle + delta)
+        noisy.append(coord + delta)
 
     return tuple(noisy)
 
@@ -320,15 +320,15 @@ for e_idx, env_path in enumerate(envTextures, start=1):
     env_name = os.path.splitext(os.path.basename(env_path))[0] if os.path.exists(env_path) else "noenv"
     set_environment_texture(env_path if os.path.exists(env_path) else None)
 
-    for c_idx, (cam_name, cam_rot) in enumerate(camera_positions.items(), start=1):
+    for c_idx, (cam_name, cam_pos) in enumerate(camera_positions.items(), start=1):
         # apply ±20% random variance
-        # cam_rot_noisy = add_camera_variance(cam_rot, 0.20)
-        cam_rot_noisy = add_camera_gaussian_noise(
-            cam_rot,
+        # cam_pos_noisy = add_camera_position_variance(cam_pos, 0.20)
+        cam_pos_noisy = add_camera_position_gaussian(
+            cam_pos,
             sigma_ratio=0.1,   # 10% natural variation
             clamp_ratio=0.20    # max allowed ±20% deviation
         )
-        set_camera_rotation(cam_rot_noisy)
+        set_camera_location(cam_pos_noisy)
 
         for t_idx, tex_path in enumerate(textures, start=1):
             if(os.path.exists(tex_path)):
