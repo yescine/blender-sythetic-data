@@ -11,10 +11,10 @@ python organize_image_mask.py --img-dir /tmp/blender-outputs  --out-dir ./data/
 ```
 
 Generate Yolo, CVAT data sets
+
 ```bash
 python ./organize_masks_annotation.py --mask-dir ./data/images-masks/masks --annotation-json ./data/material_dic.json --out-dir ./data/images-masks
 ```
-
 
 ## Misc
 
@@ -23,6 +23,10 @@ python ./organize_masks_annotation.py --mask-dir ./data/images-masks/masks --ann
 - `extract_materials_idx.py`: log in json all material with their "Pass Index"
 
 ## ⚙️ Environment Configuration
+
+```bash
+touch runpod.sh && chmod 777 runpod.sh
+```
 
 ### Runpod
 
@@ -44,7 +48,8 @@ Example
 mc mirror --max-workers=4 myminio/public/shared/blender /workspace/data-assets
 ```
 
-Upload outputed files continously 
+Upload outputed files continously
+
 ```bash
 mc mirror --watch --max-workers=4 /tmp/blender-outputs myminio/public/shared/blender-outputs
 ```
