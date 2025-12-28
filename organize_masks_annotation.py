@@ -26,26 +26,28 @@ def extract_binary_mask(mask, value):
     """Binary mask for grayscale region."""
     return (mask == value).astype(np.uint8) * 255
 
+def extract_polygons(binary_mask, epsilon_ratio=0.002):
+    contours, _ = cv2.findContours(
+        binary_mask,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_NONE
+    )
 
-def merged_convex_polygon(binary_mask):
-    """Merge all contours into a single convex hull polygon."""
-    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    polygons = []
 
-    if not contours:
-        return None
+    for cnt in contours:
+        if len(cnt) < 3:
+            continue
 
-    # Stack all contour points together
-    pts = np.vstack(contours).squeeze()
+        # Optional simplification (VERY IMPORTANT)
+        epsilon = epsilon_ratio * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
 
-    if pts.ndim != 2 or pts.shape[0] < 3:
-        return None
+        poly = [(int(x), int(y)) for [[x, y]] in approx]
+        if len(poly) >= 3:
+            polygons.append(poly)
 
-    hull = cv2.convexHull(pts)
-    hull = hull.reshape(-1, 2)
-
-    # Convert to Python list of (x,y)
-    return [(int(x), int(y)) for x, y in hull]
-
+    return polygons
 
 def bbox_from_binary_mask(binary_mask):
     ys, xs = np.where(binary_mask == 255)
@@ -173,9 +175,9 @@ def main():
                 yolo_lines.append(f"{class_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}")
 
             # Single merged polygon (convex hull)
-            polygon = merged_convex_polygon(binary)
-            if polygon:
-                add_cvat_polygon(image_el, label_name, polygon)
+            polygons = extract_polygons(binary)
+            for poly in polygons:
+                add_cvat_polygon(image_el, label_name, poly)
 
         # Write YOLO output
         yolo_file = yolo_dir / f"{mask_path.stem}.txt"
