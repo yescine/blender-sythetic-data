@@ -12,19 +12,17 @@ import xml.etree.ElementTree as ET
 # ----------------------------------------------------------
 
 def load_mask(path: Path):
-    """Load mask as numpy array (grayscale)."""
     return np.array(Image.open(path).convert("L"))
 
 
 def find_unique_labels(mask):
-    """Return all grayscale values > 0."""
     values = np.unique(mask)
     return [int(v) for v in values if v != 0]
 
 
 def extract_binary_mask(mask, value):
-    """Binary mask for grayscale region."""
     return (mask == value).astype(np.uint8) * 255
+
 
 def extract_polygons(binary_mask, epsilon_ratio=0.002):
     contours, _ = cv2.findContours(
@@ -39,7 +37,6 @@ def extract_polygons(binary_mask, epsilon_ratio=0.002):
         if len(cnt) < 3:
             continue
 
-        # Optional simplification (VERY IMPORTANT)
         epsilon = epsilon_ratio * cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, epsilon, True)
 
@@ -48,6 +45,7 @@ def extract_polygons(binary_mask, epsilon_ratio=0.002):
             polygons.append(poly)
 
     return polygons
+
 
 def bbox_from_binary_mask(binary_mask):
     ys, xs = np.where(binary_mask == 255)
@@ -60,18 +58,16 @@ def convert_bbox_to_yolo(bbox, w, h):
     x_min, y_min, x_max, y_max = bbox
     bw = x_max - x_min
     bh = y_max - y_min
-    x_center = x_min + bw / 2
-    y_center = y_min + bh / 2
     return (
-        x_center / w,
-        y_center / h,
+        (x_min + bw / 2) / w,
+        (y_min + bh / 2) / h,
         bw / w,
         bh / h
     )
 
 
 # ----------------------------------------------------------
-# CVAT XML Handling
+# CVAT helpers
 # ----------------------------------------------------------
 
 def create_cvat_root():
@@ -90,8 +86,7 @@ def create_cvat_image(root, image_id, filename, width, height):
 
 
 def add_cvat_polygon(image_el, label, polygon_pts):
-    pts_str = ";".join([f"{x},{y}" for x, y in polygon_pts])
-
+    pts_str = ";".join(f"{x},{y}" for x, y in polygon_pts)
     ET.SubElement(image_el, "polygon", attrib={
         "label": label,
         "points": pts_str,
@@ -105,10 +100,14 @@ def add_cvat_polygon(image_el, label, polygon_pts):
 # ----------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Organize polygon masks → YOLO + CVAT (single polygon per label)")
-    parser.add_argument("--mask-dir", required=True, help="Directory containing mask PNGs")
-    parser.add_argument("--annotation-json", required=True, help="JSON mapping label → grayscale value")
-    parser.add_argument("--out-dir", required=True, help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Convert masks → YOLO + CVAT with optional part fusion"
+    )
+    parser.add_argument("--mask-dir", required=True)
+    parser.add_argument("--annotation-json", required=True)
+    parser.add_argument("--fusion-json", required=False,
+                        help="Optional JSON defining fusion rules")
+    parser.add_argument("--out-dir", required=True)
 
     args = parser.parse_args()
 
@@ -120,76 +119,140 @@ def main():
     yolo_dir.mkdir(parents=True, exist_ok=True)
     cvat_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load mapping {label → grayscale_value}
+    # ------------------------------------------------------
+    # Load label map
+    # ------------------------------------------------------
+
     with open(args.annotation_json) as f:
         label_map = json.load(f)
 
-    # Reverse mapping: grayscale_value → label
-    value_to_label = {int(v): label for label, v in label_map.items()}
-    sorted_values = sorted(value_to_label.keys())  # For stable YOLO class IDs
+    value_to_label = {int(v): k for k, v in label_map.items()}
+
+    # ------------------------------------------------------
+    # Load fusion rules (optional)
+    # ------------------------------------------------------
+
+    fusion_rules = {}
+    if args.fusion_json:
+        with open(args.fusion_json) as f:
+            fusion_rules = json.load(f)
+
+    fusion_label_to_values = {}
+    fused_values = set()
+
+    for fusion_label, src_labels in fusion_rules.items():
+        values = []
+        for src in src_labels:
+            if src not in label_map:
+                raise ValueError(
+                    f"Fusion source label '{src}' missing in annotation JSON"
+                )
+            values.append(label_map[src])
+        fusion_label_to_values[fusion_label] = values
+        fused_values.update(values)
+
+    # ------------------------------------------------------
+    # YOLO class ordering (stable)
+    # ------------------------------------------------------
+
+    yolo_labels = (
+        [lbl for lbl, v in label_map.items() if v not in fused_values]
+        + list(fusion_rules.keys())
+    )
+
+    yolo_label_to_id = {lbl: i for i, lbl in enumerate(yolo_labels)}
+
+    print("\nYOLO classes:")
+    for k, v in yolo_label_to_id.items():
+        print(f"  {v:02d} → {k}")
+
+    # ------------------------------------------------------
+    # CVAT root
+    # ------------------------------------------------------
 
     cvat_root = create_cvat_root()
-
-    image_id = 0  # increment per image
+    image_id = 0
 
     # ------------------------------------------------------
-    # Process mask files
+    # Process masks
     # ------------------------------------------------------
+
     for mask_path in sorted(mask_dir.glob("*.png")):
-        print(f"Processing {mask_path.name}")
+        print(f"\nProcessing {mask_path.name}")
 
         mask = load_mask(mask_path)
         h, w = mask.shape[:2]
-
         unique_values = find_unique_labels(mask)
 
-        # Create <image> in CVAT XML
         image_el = create_cvat_image(
-            cvat_root,
-            image_id=image_id,
-            filename=mask_path.name,
-            width=w,
-            height=h
+            cvat_root, image_id, mask_path.name, w, h
         )
         image_id += 1
 
-        # YOLO annotation output lines
         yolo_lines = []
 
-        for v in unique_values:
+        # ------------------ Non-fused ------------------
 
+        for v in unique_values:
+            if v in fused_values:
+                continue
             if v not in value_to_label:
-                print(f"[WARN] Grayscale {v} in {mask_path.name} missing in JSON — skipped.")
                 continue
 
-            label_name = value_to_label[v]
-            class_id = sorted_values.index(v)
+            label = value_to_label[v]
+            cid = yolo_label_to_id[label]
 
-            # Binary mask
             binary = extract_binary_mask(mask, v)
 
-            # Bbox
             bbox = bbox_from_binary_mask(binary)
             if bbox:
                 xc, yc, bw, bh = convert_bbox_to_yolo(bbox, w, h)
-                yolo_lines.append(f"{class_id} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}")
+                yolo_lines.append(
+                    f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"
+                )
 
-            # Single merged polygon (convex hull)
-            polygons = extract_polygons(binary)
-            for poly in polygons:
-                add_cvat_polygon(image_el, label_name, poly)
+            for poly in extract_polygons(binary):
+                add_cvat_polygon(image_el, label, poly)
 
-        # Write YOLO output
-        yolo_file = yolo_dir / f"{mask_path.stem}.txt"
-        with open(yolo_file, "w") as f:
+        # ------------------ Fused ------------------
+
+        for fusion_label, values in fusion_label_to_values.items():
+            merged = np.zeros((h, w), dtype=np.uint8)
+            for v in values:
+                merged |= extract_binary_mask(mask, v)
+
+            if not np.any(merged):
+                continue
+
+            cid = yolo_label_to_id[fusion_label]
+
+            bbox = bbox_from_binary_mask(merged)
+            if bbox:
+                xc, yc, bw, bh = convert_bbox_to_yolo(bbox, w, h)
+                yolo_lines.append(
+                    f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"
+                )
+
+            for poly in extract_polygons(merged):
+                add_cvat_polygon(image_el, fusion_label, poly)
+
+        # ------------------ Write YOLO ------------------
+
+        with open(yolo_dir / f"{mask_path.stem}.txt", "w") as f:
             f.write("\n".join(yolo_lines))
 
-    # Save CVAT XML
-    cvat_xml_path = cvat_dir / "annotations.xml"
-    ET.ElementTree(cvat_root).write(cvat_xml_path, encoding="utf-8", xml_declaration=True)
+    # ------------------------------------------------------
+    # Save CVAT
+    # ------------------------------------------------------
 
-    print(f"\nYOLO annotations saved → {yolo_dir}")
-    print(f"CVAT XML saved → {cvat_xml_path}")
+    cvat_xml_path = cvat_dir / "annotations.xml"
+    ET.ElementTree(cvat_root).write(
+        cvat_xml_path, encoding="utf-8", xml_declaration=True
+    )
+
+    print("\nDone.")
+    print(f"YOLO → {yolo_dir}")
+    print(f"CVAT → {cvat_xml_path}")
 
 
 if __name__ == "__main__":
