@@ -67,3 +67,17 @@ cd /workspace
 ## Visualize
 
 inside `./apps` single html file to visulize different outputs
+
+# To YOLO pipeline
+
+Split image and masks into seperate folder and cerate csv summary indexes
+
+```bash
+python organize_image_mask.py --img-dir ./data/character-images --out-dir ./data
+```
+
+Create cvat and yolo annotation from json defined material
+
+```bash
+python organize_masks_annotation.py --mask-dir ./data/images-masks/masks/ --annotation-json ./data/material_dic_cvat.json --out-dir ./data --fusion-json ./data/material_dic_cvat_fusion.json
+```
