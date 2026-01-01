@@ -92,8 +92,10 @@ apt-get install -y \
   libopengl0 \
   libxxf86vm1 \
   libxcursor1 \
-  libasound2t64 \
+  libasound2 \
+  libsm6 \
   mesa-utils
+#   libasound2t64
 
 echo "🔍 Checking OpenGL availability..."
 glxinfo | grep "OpenGL" || echo "⚠️ OpenGL info not available (expected in headless mode, OK)"
