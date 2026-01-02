@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import cv2
 import xml.etree.ElementTree as ET
+import sys
 
 
 # ----------------------------------------------------------
@@ -65,7 +66,9 @@ def convert_bbox_to_yolo(bbox, w, h):
         bh / h
     )
 
-
+def inline_print(msg: str):
+    sys.stdout.write("\r" + msg)
+    sys.stdout.flush()
 # ----------------------------------------------------------
 # CVAT helpers
 # ----------------------------------------------------------
@@ -178,7 +181,7 @@ def main():
     # ------------------------------------------------------
 
     for mask_path in sorted(mask_dir.glob("*.png")):
-        print(f"\nProcessing {mask_path.name}")
+        inline_print(f"Processing {mask_path.name}")
 
         mask = load_mask(mask_path)
         h, w = mask.shape[:2]

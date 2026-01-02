@@ -22,7 +22,7 @@ def detect_type(file_path: Path):
     """
     name = file_path.name.lower()
     parent = file_path.parent.name.lower()
-    if any(k in name for k in ["mask", "seg", "segmentation"]) or "mask" in parent:
+    if any(k in name for k in ["mask", "segmentation-material"]) or "mask" in parent:
         return "mask"
     return "image"
 
@@ -67,12 +67,24 @@ def main():
 
     # write CSV + copy files
     csv_path = base_dir / "data.csv"
+    
+    missing_image = 0
+    missing_mask = 0
+    collisions = 0
+
     with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["filename"] + all_keys)
 
         count = 1
-        for _, entry in groups.items():
+        for keys, entry in groups.items():
+            # print(entry)
+            
+            if entry["image"] is None:
+                missing_image += 1
+            if entry["mask"] is None:
+                missing_mask += 1
+            
             idx_name = f"{count:04d}.png"
 
             # copy image
@@ -86,13 +98,16 @@ def main():
             # write metadata row
             row = [idx_name] + [entry["meta"].get(k, "") for k in all_keys]
             writer.writerow(row)
-            count += 1
+            count += 1 
 
     print(f"✅ Done. {count-1} pairs processed.")
 
     print(f"Images → {img_out}")
     print(f"Masks → {mask_out}")
     print(f"Metadata → {csv_path}")
+    if(missing_image>0): print(f"⚠️ Groups missing image: {missing_image}")
+    if(missing_mask>0): print(f"⚠️ Groups missing mask: {missing_mask}")
+    print(f"📊 Total groups: {len(groups)}")
 
 if __name__ == "__main__":
     main()
