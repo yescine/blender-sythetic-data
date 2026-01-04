@@ -66,6 +66,23 @@ def convert_bbox_to_yolo(bbox, w, h):
         bh / h
     )
 
+def filter_binary_mask_by_area(binary_mask, min_area_px, min_area_ratio):
+    h, w = binary_mask.shape
+    min_area = max(min_area_px, int(h * w * min_area_ratio))
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        binary_mask, connectivity=8
+    )
+
+    cleaned = np.zeros_like(binary_mask)
+
+    for i in range(1, num_labels):  # skip background
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area >= min_area:
+            cleaned[labels == i] = 255
+
+    return cleaned
+
 def inline_print(msg: str):
     sys.stdout.write("\r" + msg)
     sys.stdout.flush()
@@ -101,6 +118,9 @@ def add_cvat_polygon(image_el, label, polygon_pts):
 # ----------------------------------------------------------
 # Main
 # ----------------------------------------------------------
+
+MIN_COMPONENT_AREA_PX = 150      # hard floor (pixels)
+MIN_COMPONENT_AREA_RATIO = 0.0005  # relative to image area (0.05%)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -181,7 +201,7 @@ def main():
     # ------------------------------------------------------
 
     for mask_path in sorted(mask_dir.glob("*.png")):
-        inline_print(f"Processing {mask_path.name}")
+        inline_print(f"Processing {mask_path.name} / {len(list(mask_dir.glob('*.png')))}")
 
         mask = load_mask(mask_path)
         h, w = mask.shape[:2]
@@ -205,7 +225,14 @@ def main():
             label = value_to_label[v]
             cid = yolo_label_to_id[label]
 
-            binary = extract_binary_mask(mask, v)
+            binary_raw = extract_binary_mask(mask, v)
+            binary = filter_binary_mask_by_area(
+                binary_raw,
+                MIN_COMPONENT_AREA_PX,
+                MIN_COMPONENT_AREA_RATIO
+            )
+            if not np.any(binary):
+                continue
 
             bbox = bbox_from_binary_mask(binary)
             if bbox:

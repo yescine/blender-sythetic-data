@@ -51,7 +51,7 @@ mc mirror --max-workers=4 myminio/public/shared/blender /workspace/data-assets
 Upload outputed files continously
 
 ```bash
-mc mirror --watch --max-workers=4 /tmp/blender-outputs myminio/public/shared/blender-outputs
+mc mirror --watch --max-workers=4 /tmp/blender-outputs myminio/public/shared/blender-outputs/characters-images-masks
 ```
 
 ## Render
@@ -60,7 +60,7 @@ Example
 
 ```bash
 cd /workspace
-/workspace/blender/blender -b /workspace/data-assets/samplex-render-workflow.blend -P /workspace/blender-sythetic-data/render.py
+BLENDER_PROGRESS=1  /workspace/blender/blender -b /workspace/data-assets/samplex-render-workflow.blend -P /workspace/blender-sythetic-data/render.py
 
 ```
 
