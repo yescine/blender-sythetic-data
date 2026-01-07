@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description="Organize first-level images/masks and build CSV metadata")
     parser.add_argument("--img-dir", required=True, help="Path to directory containing rendered images/masks (non-recursive)")
     parser.add_argument("--out-dir", default="./data", help="Output base directory")
+    parser.add_argument("--count-start", type=int, default=1, help="Starting index for naming output files")
     args = parser.parse_args()
 
     img_dir = Path(args.img_dir)
@@ -70,13 +71,12 @@ def main():
     
     missing_image = 0
     missing_mask = 0
-    collisions = 0
 
     with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["filename"] + all_keys)
 
-        count = 1
+        count = args.count_start
         for keys, entry in groups.items():
             # print(entry)
             

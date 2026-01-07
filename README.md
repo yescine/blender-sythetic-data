@@ -79,5 +79,5 @@ python organize_image_mask.py --img-dir ./data/character-images --out-dir ./data
 Create cvat and yolo annotation from json defined material
 
 ```bash
-python organize_masks_annotation.py --mask-dir ./data/images-masks/masks/ --annotation-json ./data/material_dic_cvat.json --out-dir ./data --fusion-json ./data/material_dic_cvat_fusion.json
+python organize_masks_annotation.py --mask-dir ./data/images-masks/masks/ --annotation-json ./data/material_dic_cvat.json --out-dir ./data --fusion-json ./data/material_dic_cvat_fusion.json --count-start 200
 ```
