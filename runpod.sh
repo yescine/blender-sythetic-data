@@ -95,6 +95,7 @@ apt-get install -y \
   libasound2 \
   libsm6 \
   mesa-utils
+# for RTX 5090 support pytorch >=2.8, else use libasound2, libsm6
 #   libasound2t64
 
 echo "🔍 Checking OpenGL availability..."
