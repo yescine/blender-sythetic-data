@@ -83,6 +83,48 @@ def filter_binary_mask_by_area(binary_mask, min_area_px, min_area_ratio):
 
     return cleaned
 
+def keep_largest_components(
+    binary_mask: np.ndarray,
+    max_components: int,
+    min_area_px: int,
+    min_area_ratio: float
+):
+    """
+    Keep only the N largest connected components
+    that are >= min_area (px or ratio-based).
+    """
+    if max_components <= 0:
+        return np.zeros_like(binary_mask)
+
+    h, w = binary_mask.shape
+    min_area = max(min_area_px, int(h * w * min_area_ratio))
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        binary_mask, connectivity=8
+    )
+
+    # Collect only components that pass min_area
+    comps = [
+        (i, stats[i, cv2.CC_STAT_AREA])
+        for i in range(1, num_labels)
+        if stats[i, cv2.CC_STAT_AREA] >= min_area
+    ]
+
+    if not comps:
+        return np.zeros_like(binary_mask)
+
+    # Sort by area (largest first)
+    comps.sort(key=lambda x: x[1], reverse=True)
+
+    keep_ids = {i for i, _ in comps[:max_components]}
+
+    out = np.zeros_like(binary_mask)
+    for i in keep_ids:
+        out[labels == i] = 255
+
+    return out
+
+
 def inline_print(msg: str):
     sys.stdout.write("\r" + msg)
     sys.stdout.flush()
@@ -119,8 +161,10 @@ def add_cvat_polygon(image_el, label, polygon_pts):
 # Main
 # ----------------------------------------------------------
 
-MIN_COMPONENT_AREA_PX = 150      # hard floor (pixels)
+POLYGON_EPSILON_RATIO = 0.001
+MIN_COMPONENT_AREA_PX = 1500      # hard floor (pixels)
 MIN_COMPONENT_AREA_RATIO = 0.0005  # relative to image area (0.05%)
+MAX_SEG_PER_CLASS = 2
 
 def main():
     parser = argparse.ArgumentParser(
@@ -226,8 +270,14 @@ def main():
             cid = yolo_label_to_id[label]
 
             binary_raw = extract_binary_mask(mask, v)
-            binary = filter_binary_mask_by_area(
+            # binary = filter_binary_mask_by_area(
+            #     binary_raw,
+            #     MIN_COMPONENT_AREA_PX,
+            #     MIN_COMPONENT_AREA_RATIO
+            # )
+            binary = keep_largest_components(
                 binary_raw,
+                MAX_SEG_PER_CLASS,
                 MIN_COMPONENT_AREA_PX,
                 MIN_COMPONENT_AREA_RATIO
             )
@@ -241,7 +291,7 @@ def main():
                     f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"
                 )
 
-            for poly in extract_polygons(binary):
+            for poly in extract_polygons(binary, epsilon_ratio=POLYGON_EPSILON_RATIO):
                 add_cvat_polygon(image_el, label, poly)
 
         # ------------------ Fused ------------------
@@ -263,7 +313,7 @@ def main():
                     f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}"
                 )
 
-            for poly in extract_polygons(merged):
+            for poly in extract_polygons(merged, epsilon_ratio=POLYGON_EPSILON_RATIO):
                 add_cvat_polygon(image_el, fusion_label, poly)
 
         # ------------------ Write YOLO ------------------
