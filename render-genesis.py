@@ -92,8 +92,15 @@ envTextures = [
 # Camera positions (Euler rotations in radians)
 camera_positions = {
     "isometric":(2.5, -2.5, 3.5),
-    "front": (0.1, -4.5, 1),
+    "front": (0.1, -4.5, 1.75),
     "isometricbottom":(2.5, -2.5, -2.5),
+}
+
+object_positions_relative = {
+    # "center": (0.1, 0.1, 0.1), 
+    "medium": (0.22, 0.22, 0.11), 
+    "close": (0.44, 0.44, 0.22),
+    # "far": (0, 0, 0),
 }
 
 # Texture list (each applied to "main-male.001" slot)
@@ -199,6 +206,54 @@ def add_camera_position_gaussian(base_loc, sigma_ratio=0.05, clamp_ratio=0.15):
         noisy.append(coord + delta)
 
     return tuple(noisy)
+
+def add_object_position_noise(
+    base_loc: tuple[float, float, float],
+    sigma_ratio=0.05,
+    clamp_ratio=0.15
+):
+    """
+    Gaussian XYZ noise for object location.
+    - sigma_ratio: % of base coordinate used as σ
+    - clamp_ratio: hard clamp as % of base coordinate
+    """
+    noisy = []
+    for coord in base_loc:
+        ref = abs(coord) if abs(coord) > 1e-6 else 1.0
+        sigma = ref * sigma_ratio
+        clamp = ref * clamp_ratio
+
+        delta = random.gauss(0, sigma)
+        delta = max(-clamp, min(clamp, delta))
+
+        noisy.append(coord + delta)
+
+    return tuple(noisy)
+
+def set_object_location(obj_name: str, location: tuple):
+    obj = bpy.context.scene.objects.get(obj_name)
+    if not obj:
+        print(f"⚠️ Object '{obj_name}' not found for positioning")
+        return
+    obj.location = location
+    # print(
+    #     f"📍 {obj_name} location → "
+    #     f"{tuple(round(v, 3) for v in location)}"
+    # )
+    
+def compute_object_position_from_camera(
+    cam_loc: tuple[float, float, float],
+    rel_pos: tuple[float, float, float]
+) -> tuple[float, float, float]:
+    """
+    Convert relative object position into world-space position
+    by scaling it with the current camera XYZ.
+    """
+    return (
+        cam_loc[0] * rel_pos[0],
+        cam_loc[1] * rel_pos[1],
+        cam_loc[2] * rel_pos[2],
+    )
 
 def set_mesh_texture(mesh_name: str, slot_name: str, texture_path: str):
     """Assigns texture to specific material slot if exists."""
@@ -347,8 +402,9 @@ total_cams = len(camera_positions)
 total_rots = len(zAngles)
 total_poses = len(pose_files)
 total_textures = len(textures)
+total_obj_positions = len(object_positions_relative)
 total_objs = 2  # mainObjectId + secondObjectId
-total_combinations = total_envs * total_cams * total_textures * total_rots * total_poses * total_objs
+total_combinations = total_envs * total_cams * total_textures * total_rots * total_poses * total_obj_positions * total_objs
 
 progress = 0
 
@@ -374,41 +430,58 @@ for e_idx, env_path in enumerate(envTextures, start=1):
                 set_mesh_texture(secondMeshId, "main-male.001", tex_path)
             else:
                 tex_name = "none"
+                
+            for o_idx, (obj_pos_name, obj_rel_pos) in enumerate(object_positions_relative.items(), start=1):
+                # Scale relative position by current camera position
+                obj_base_pos = compute_object_position_from_camera(
+                    cam_pos_noisy,
+                    obj_rel_pos
+                )
 
-            for r_idx, rotZ_deg in enumerate(zAngles, start=1):
-                for p_idx, pose_path in enumerate(pose_files, start=1):
-                    pose_name = os.path.splitext(os.path.basename(pose_path))[0]
+                # Apply Gaussian noise in world space
+                obj_pos_noisy = add_object_position_noise(
+                    obj_base_pos,
+                    sigma_ratio=0.05,
+                    clamp_ratio=0.10
+                )
+                set_object_location(mainObjectId, obj_pos_noisy)
+                set_object_location(secondObjectId, obj_pos_noisy)
 
-                    print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    print(
-                        f"ENV: {env_name} ({e_idx}/{total_envs}) | "
-                        f"CAM: {cam_name} ({c_idx}/{total_cams}) | "
-                        f"TEX: {tex_name} ({t_idx}/{total_textures}) | "
-                        f"ROTZ: {rotZ_deg}° ({r_idx}/{total_rots}) | "
-                        f"POSE: {pose_name} ({p_idx}/{total_poses})"
-                    )
-                    print(f"Global progress: {progress}/{total_combinations} total")
-                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                for r_idx, rotZ_deg in enumerate(zAngles, start=1):
+                    for p_idx, pose_path in enumerate(pose_files, start=1):
+                        pose_name = os.path.splitext(os.path.basename(pose_path))[0]
 
-                    mainArmature = bpy.data.objects[mainObjectId]
-                    load_pose_from_json_file(mainArmature, pose_path)
-                    
-                    secondArmature = bpy.data.objects[secondObjectId]
-                    load_pose_from_json_file(secondArmature, pose_path)
+                        print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        print(
+                            f"ENV: {env_name} ({e_idx}/{total_envs}) | "
+                            f"CAM: {cam_name} ({c_idx}/{total_cams}) | "
+                            f"OBJPOS: {obj_pos_name} ({o_idx}/{total_obj_positions}) | "
+                            f"TEX: {tex_name} ({t_idx}/{total_textures}) | "
+                            f"ROTZ: {rotZ_deg}° ({r_idx}/{total_rots}) | "
+                            f"POSE: {pose_name} ({p_idx}/{total_poses})"
+                        )
+                        print(f"Global progress: {progress}/{total_combinations} total")
+                        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                    for current_obj in [mainObjectId, secondObjectId]:
-                        progress += 1
-                        prepare_scene_for_object(current_obj, rotZ_deg)
+                        mainArmature = bpy.data.objects[mainObjectId]
+                        load_pose_from_json_file(mainArmature, pose_path)
+                        
+                        secondArmature = bpy.data.objects[secondObjectId]
+                        load_pose_from_json_file(secondArmature, pose_path)
 
-                        scene = bpy.context.scene
-                        tree = scene.node_tree
-                        for node in tree.nodes:
-                            if node.type == "OUTPUT_FILE" and not node.mute:
-                                node.file_slots[0].path = (
-                                    f"{node.name}&env={env_name}&cam={cam_name}&tex={tex_name}&rotZ={rotZ_deg}&pose={pose_name}&char={characterArmature}"
-                                )
-                                print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
+                        for current_obj in [mainObjectId, secondObjectId]:
+                            progress += 1
+                            prepare_scene_for_object(current_obj, rotZ_deg)
 
-                        bpy.ops.render.render(write_still=True)
-                        print(f"🖼️ Render done for '{current_obj}' ({pose_name}) [{progress}/{total_combinations}] ✅\n")
+                            scene = bpy.context.scene
+                            tree = scene.node_tree
+                            for node in tree.nodes:
+                                if node.type == "OUTPUT_FILE" and not node.mute:
+                                    node.file_slots[0].path = (
+                                        f"{node.name}&env={env_name}&cam={cam_name}&tex={tex_name}&rotZ={rotZ_deg}&pose={pose_name}&zoom={obj_pos_name}&char={characterArmature}"
+                                    )
+                                    print(f"📂 Output path for '{node.name}' → {node.file_slots[0].path}")
+
+                            bpy.ops.render.render(write_still=True)
+                            print(f"🖼️ Render done for '{current_obj}' ({pose_name}) [{progress}/{total_combinations}] ✅\n")
 
